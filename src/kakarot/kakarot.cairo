@@ -17,6 +17,7 @@ from backend.starknet import Starknet
 from kakarot.account import Account
 from kakarot.events import kakarot_upgraded
 from kakarot.library import Kakarot
+from kakarot.interfaces.interfaces import IAccount
 from kakarot.model import model
 from utils.utils import Helpers
 
@@ -290,6 +291,24 @@ func write_account_nonce{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_c
     return Kakarot.write_account_nonce(evm_address, nonce);
 }
 
+@external
+func set_authorized_message_sender{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    sender, authorized: felt
+) {
+    Ownable.assert_only_owner();
+    return Kakarot.set_authorized_message_sender(sender, authorized);
+}
+
+@external
+func set_authorized_pre_eip155_tx{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    sender_address: felt, msg_hash: Uint256
+) {
+    Ownable.assert_only_owner();
+    let sender_starknet_address = Account.compute_starknet_address(sender_address);
+    IAccount.set_authorized_pre_eip155_tx(sender_starknet_address, msg_hash);
+    return ();
+}
+
 // @notice The eth_call function as described in the spec,
 //         see https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_call
 //         This is a view only function, meaning that it doesn't make any state change.
@@ -447,4 +466,21 @@ func eth_send_transaction{
     }
 
     return result;
+}
+
+@l1_handler
+func handle_l1_message{
+    syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*
+}(from_address: felt, l1_sender: felt, to_address: felt, value: felt, data_len: felt, data: felt*) {
+    alloc_locals;
+    let is_authorized = Kakarot.get_authorized_message_sender(from_address);
+    if (is_authorized == 0) {
+        return ();
+    }
+
+    let (_, state, _, _) = Kakarot.handle_l1_message(l1_sender, to_address, value, data_len, data);
+
+    // Reverted or not - commit the state change. If reverted, the state was cleared to only contain gas-related changes.
+    Starknet.commit(state);
+    return ();
 }

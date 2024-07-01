@@ -14,6 +14,7 @@ from web3.exceptions import NoABIFunctionsFound
 from kakarot_scripts.ef_tests.fetch import EF_TESTS_PARSED_DIR
 from tests.utils.constants import TRANSACTION_GAS_LIMIT
 from tests.utils.errors import cairo_error
+from tests.utils.helpers import felt_to_signed_int
 from tests.utils.syscall_handler import SyscallHandler, parse_state
 
 CONTRACT_ADDRESS = 1234
@@ -71,6 +72,144 @@ def get_contract(cairo_run):
 
 class TestKakarot:
 
+    class TestNativeToken:
+        @pytest.mark.slow
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_native_token", address=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_native_token(self, cairo_run):
+            token_address = 0xABCDE12345
+            cairo_run("test__set_native_token", address=token_address)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Kakarot_native_token_address"),
+                value=token_address,
+            )
+
+    class TestTransferOwnership:
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__transfer_ownership", new_owner=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_transfer_ownership(self, cairo_run):
+            new_owner = 0xABCDE12345
+            cairo_run("test__transfer_ownership", new_owner=new_owner)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Ownable_owner"), value=new_owner
+            )
+
+    class TestBaseFee:
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_base_fee", base_fee=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_base_fee(self, cairo_run):
+            base_fee = 0x100
+            cairo_run("test__set_base_fee", base_fee=base_fee)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Kakarot_base_fee"), value=base_fee
+            )
+
+    class TestCoinbase:
+        @pytest.mark.slow
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_coinbase", coinbase=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_coinbase(self, cairo_run):
+            coinbase = 0xC0DE
+            cairo_run("test__set_coinbase", coinbase=coinbase)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Kakarot_coinbase"), value=coinbase
+            )
+
+    class TestPrevRandao:
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_prev_randao", prev_randao=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_prev_randao(self, cairo_run):
+            prev_randao = 0x123
+            cairo_run("test__set_prev_randao", prev_randao=prev_randao)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Kakarot_prev_randao"),
+                value=prev_randao,
+            )
+
+    class TestBlockGasLimit:
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_block_gas_limit", block_gas_limit=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_block_gas_limit(self, cairo_run):
+            block_gas_limit = 0x1000
+            cairo_run("test__set_block_gas_limit", block_gas_limit=block_gas_limit)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Kakarot_block_gas_limit"),
+                value=block_gas_limit,
+            )
+
+    class TestAccountContractClassHash:
+        @pytest.mark.slow
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_account_contract_class_hash", class_hash=0xABC)
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_account_contract_class_hash(self, cairo_run):
+            class_hash = 0x123
+            cairo_run("test__set_account_contract_class_hash", class_hash=class_hash)
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address("Kakarot_account_contract_class_hash"),
+                value=class_hash,
+            )
+
+    class TestAuthorizedCairoPrecompileCaller:
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run(
+                    "test__set_authorized_cairo_precompile_caller",
+                    caller_address=0xABC,
+                    authorized=0xBCD,
+                )
+
+        @SyscallHandler.patch("Ownable_owner", SyscallHandler.caller_address)
+        def test_should_set_authorized_cairo_precompile_caller(self, cairo_run):
+            caller = 0x123
+            authorized = 0x456
+            cairo_run(
+                "test__set_authorized_cairo_precompile_caller",
+                caller_address=caller,
+                authorized=authorized,
+            )
+            SyscallHandler.mock_storage.assert_any_call(
+                address=get_storage_var_address(
+                    "Kakarot_authorized_cairo_precompiles_callers",
+                    caller,
+                ),
+                value=authorized,
+            )
+
+    class Cairo1HelpersClass:
+        @SyscallHandler.patch("Ownable_owner", 0xDEAD)
+        def test_should_assert_only_owner(self, cairo_run):
+            with cairo_error(message="Ownable: caller is not the owner"):
+                cairo_run("test__set_cairo1_helpers_class_hash", class_hash=0xABC)
+
     class TestRegisterAccount:
         @SyscallHandler.patch("Kakarot_evm_to_starknet_address", EVM_ADDRESS, 0)
         @patch(
@@ -94,6 +233,7 @@ class TestKakarot:
                 value=starknet_address,
             )
 
+        @pytest.mark.slow
         @SyscallHandler.patch("Kakarot_evm_to_starknet_address", 0x42069, 1)
         @patch(
             "tests.utils.syscall_handler.SyscallHandler.caller_address",
@@ -107,7 +247,7 @@ class TestKakarot:
             )
             mock_caller_address.return_value = starknet_address
 
-            with cairo_error():
+            with cairo_error(message="Kakarot: account already registered"):
                 cairo_run("test__register_account", evm_address=EVM_ADDRESS)
 
         @SyscallHandler.patch("Kakarot_evm_to_starknet_address", EVM_ADDRESS, 0)
@@ -118,15 +258,18 @@ class TestKakarot:
         def test_register_account_should_fail_caller_not_resolved_address(
             self, mock_caller_address, cairo_run
         ):
-            starknet_address = cairo_run(
+            expected_starknet_address = cairo_run(
                 "compute_starknet_address", evm_address=EVM_ADDRESS
             )
-            mock_caller_address.return_value = starknet_address // 2
+            mock_caller_address.return_value = expected_starknet_address // 2
 
-            with cairo_error():
+            with cairo_error(
+                message=f"Kakarot: Caller should be {felt_to_signed_int(expected_starknet_address)}, got {expected_starknet_address // 2}"
+            ):
                 cairo_run("test__register_account", evm_address=EVM_ADDRESS)
 
     class TestEthCall:
+        @pytest.mark.slow
         @pytest.mark.SolmateERC20
         @SyscallHandler.patch(
             "IAccount.is_valid_jumpdest",
@@ -150,6 +293,7 @@ class TestKakarot:
                 evm, *_ = erc20.transfer(OTHER, amount, origin=int(OWNER, 16))
             assert not evm["reverted"]
 
+        @pytest.mark.slow
         @pytest.mark.SolmateERC721
         @SyscallHandler.patch(
             "IAccount.is_valid_jumpdest",

@@ -19,7 +19,7 @@ load_dotenv()
 
 # Hardcode block gas limit to 7M
 BLOCK_GAS_LIMIT = 7_000_000
-
+DEFAULT_GAS_PRICE = int(1e9)
 BEACON_ROOT_ADDRESS = "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"
 
 
@@ -34,6 +34,7 @@ NETWORKS = {
         "name": "mainnet",
         "explorer_url": "https://starkscan.co",
         "rpc_url": f"https://starknet-mainnet.infura.io/v3/{os.getenv('INFURA_KEY')}",
+        "l1_rpc_url": f"https://mainnet.infura.io/v3/{os.getenv('INFURA_KEY')}",
         "type": NetworkType.PROD,
         "chain_id": StarknetChainId.MAINNET,
     },
@@ -41,6 +42,7 @@ NETWORKS = {
         "name": "starknet-goerli",
         "explorer_url": "https://testnet.starkscan.co",
         "rpc_url": f"https://starknet-goerli.infura.io/v3/{os.getenv('INFURA_KEY')}",
+        "l1_rpc_url": f"https://goerli.infura.io/v3/{os.getenv('INFURA_KEY')}",
         "type": NetworkType.PROD,
         "chain_id": StarknetChainId.GOERLI,
     },
@@ -48,6 +50,7 @@ NETWORKS = {
         "name": "starknet-sepolia",
         "explorer_url": "https://sepolia.starkscan.co/",
         "rpc_url": "https://starknet-sepolia.public.blastapi.io/rpc/v0_6",
+        "l1_rpc_url": f"https://sepolia.infura.io/v3/{os.getenv('INFURA_KEY')}",
         "type": NetworkType.PROD,
         "chain_id": StarknetChainId.SEPOLIA_TESTNET,
         "check_interval": 5,
@@ -57,6 +60,7 @@ NETWORKS = {
         "name": "starknet-devnet",
         "explorer_url": "",
         "rpc_url": "http://127.0.0.1:5050/rpc",
+        "l1_rpc_url": "http://127.0.0.1:8545",
         "type": NetworkType.DEV,
         "check_interval": 0.01,
         "max_wait": 1,
@@ -65,6 +69,7 @@ NETWORKS = {
         "name": "katana",
         "explorer_url": "",
         "rpc_url": os.getenv("KATANA_RPC_URL", "http://127.0.0.1:5050"),
+        "l1_rpc_url": "http://127.0.0.1:8545",
         "type": NetworkType.DEV,
         "check_interval": 0.01,
         "max_wait": 2,
@@ -73,6 +78,7 @@ NETWORKS = {
         "name": "madara",
         "explorer_url": "",
         "rpc_url": os.getenv("MADARA_RPC_URL", "http://127.0.0.1:9944"),
+        "l1_rpc_url": "http://127.0.0.1:8545",
         "type": NetworkType.DEV,
         "check_interval": 6,
         "max_wait": 30,
@@ -81,6 +87,7 @@ NETWORKS = {
         "name": "sharingan",
         "explorer_url": "",
         "rpc_url": os.getenv("SHARINGAN_RPC_URL"),
+        "l1_rpc_url": "http://127.0.0.1:8545",
         "type": NetworkType.PROD,
         "check_interval": 6,
         "max_wait": 30,
@@ -89,6 +96,7 @@ NETWORKS = {
         "name": "kakarot-sepolia",
         "explorer_url": "",
         "rpc_url": os.getenv("KAKAROT_SEPOLIA_RPC_URL"),
+        "l1_rpc_url": f"https://sepolia.infura.io/v3/{os.getenv('INFURA_KEY')}",
         "type": NetworkType.PROD,
         "check_interval": 6,
         "max_wait": 360,
@@ -97,6 +105,7 @@ NETWORKS = {
         "name": "kakarot-staging",
         "explorer_url": "",
         "rpc_url": os.getenv("KAKAROT_STAGING_RPC_URL"),
+        "l1_rpc_url": f"https://sepolia.infura.io/v3/{os.getenv('INFURA_KEY')}",
         "type": NetworkType.STAGING,
         "check_interval": 1,
         "max_wait": 30,
@@ -135,6 +144,7 @@ if NETWORK["private_key"] is None:
     NETWORK["private_key"] = os.getenv("PRIVATE_KEY")
 
 RPC_CLIENT = FullNodeClient(node_url=NETWORK["rpc_url"])
+L1_RPC_PROVIDER = Web3(Web3.HTTPProvider(NETWORK["l1_rpc_url"]))
 WEB3 = Web3()
 
 try:
@@ -174,7 +184,11 @@ class ChainId(IntEnum):
 NETWORK["chain_id"] = ChainId.chain_id
 
 ETH_TOKEN_ADDRESS = 0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7
-COINBASE = 0xCA40796AFB5472ABAED28907D5ED6FC74C04954A
+COINBASE = int(
+    os.getenv("KAKAROT_COINBASE_RECIPIENT")
+    or "0x20eB005C0b9c906691F885eca5895338E15c36De",
+    16,
+)
 SOURCE_DIR = Path("src")
 SOURCE_DIR_FIXTURES = Path("tests/fixtures")
 CONTRACTS = {p.stem: p for p in list(SOURCE_DIR.glob("**/*.cairo"))}
@@ -185,6 +199,8 @@ BUILD_DIR_FIXTURES = BUILD_DIR / "fixtures"
 BUILD_DIR.mkdir(exist_ok=True, parents=True)
 BUILD_DIR_FIXTURES.mkdir(exist_ok=True, parents=True)
 BUILD_DIR_SSJ = BUILD_DIR / "ssj"
+
+DATA_DIR = Path("kakarot_scripts") / "data"
 
 
 class ArtifactType(Enum):
@@ -219,6 +235,20 @@ DECLARED_CONTRACTS = [
     {"contract_name": "Counter", "cairo_version": ArtifactType.cairo0},
     {"contract_name": "MockPragmaOracle", "cairo_version": ArtifactType.cairo1},
 ]
+
+# PRE-EIP155 TX
+MULTICALL3_DEPLOYER = "0x05f32b3cc3888453ff71b01135b34ff8e41263f2"
+MULTICALL3_SIGNED_TX = bytes.fromhex(
+    json.loads((DATA_DIR / "signed_txs.json").read_text())["multicall3"]
+)
+ARACHNID_PROXY_DEPLOYER = "0x3fab184622dc19b6109349b94811493bf2a45362"
+ARACHNID_PROXY_SIGNED_TX = bytes.fromhex(
+    json.loads((DATA_DIR / "signed_txs.json").read_text())["arachnid"]
+)
+CREATEX_DEPLOYER = "0xeD456e05CaAb11d66C4c797dD6c1D6f9A7F352b5"
+CREATEX_SIGNED_TX = bytes.fromhex(
+    json.loads((DATA_DIR / "signed_txs.json").read_text())["createx"]
+)
 
 EVM_PRIVATE_KEY = os.getenv("EVM_PRIVATE_KEY")
 EVM_ADDRESS = (

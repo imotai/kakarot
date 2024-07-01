@@ -10,7 +10,7 @@ endif
 KKRT_SSJ_RELEASE_ID = 154615699
 # Kakarot SSJ artifacts for precompiles.
 KKRT_SSJ_BUILD_ARTIFACT_URL = $(shell curl -L https://api.github.com/repos/kkrt-labs/kakarot-ssj/releases/${KKRT_SSJ_RELEASE_ID} | jq -r '.assets[0].browser_download_url')
-KATANA_VERSION = v0.7.0-alpha.0
+KATANA_VERSION = v0.7.0-alpha.5
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 
@@ -38,17 +38,18 @@ fetch-ssj-artifacts:
 setup: fetch-ssj-artifacts
 	poetry install
 
-test: build-sol deploy
+test: build-sol build-cairo1 deploy
 	poetry run pytest tests/src -m "not NoCI" --log-cli-level=INFO -n logical
 	poetry run pytest tests/end_to_end
 
 test-unit: build-sol
 	poetry run pytest tests/src -m "not NoCI" -n logical
 
+# run make run-nodes in other terminal
 test-end-to-end: build-sol build-cairo1 deploy
 	poetry run pytest tests/end_to_end
 
-deploy: build
+deploy: build build-sol
 	poetry run python ./kakarot_scripts/deploy_kakarot.py
 
 format:
@@ -68,16 +69,6 @@ check-resources:
 build-sol:
 	git submodule update --init --recursive
 	forge build --names --force
-	$(MAKE) build-sol-experimental
-
-build-sol-experimental:
-	docker run --rm \
-		-v $$(pwd):/app/foundry \
-		-u $$(id -u):$$(id -g) \
-		ghcr.io/paradigmxyz/foundry-alphanet@sha256:64ac81c19b910e766ce750499a2c9de064dce4fa9c4fc1e42368fdd73fc48dde \
-		--foundry-directory /app/foundry/experimental_contracts \
-		--foundry-command build
-
 
 # Builds Cairo 1.0 contracts by iterating over subdirectories,
 # compiling contracts, and copying the resulting .sierra.json (old versions) or .contract_class.json
@@ -120,3 +111,11 @@ install-katana:
 
 run-katana:
 	katana --chain-id test --validate-max-steps 6000000 --invoke-max-steps 14000000 --eth-gas-price 0 --strk-gas-price 0 --disable-fee
+
+run-anvil:
+	anvil --block-base-fee-per-gas 10
+
+run-nodes:
+	@echo "Starting Anvil and Katana in messaging mode"
+	@anvil --block-base-fee-per-gas 10 &
+	@katana --chain-id test --validate-max-steps 6000000 --invoke-max-steps 14000000 --eth-gas-price 0 --strk-gas-price 0 --disable-fee --messaging .katana/messaging_config.json
